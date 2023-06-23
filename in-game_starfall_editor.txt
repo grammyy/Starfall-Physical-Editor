@@ -1,0 +1,317 @@
+--@name In-game starfall editor
+--@author Elias
+--button statuses are off center at high values (likely still a issue, untested)
+--remove by moving higher indexes to relocated, and then destroy the old copies.
+--render fliter isnt great
+
+if SERVER then
+    local ent=chip():isWeldedTo()
+    
+    if ent then
+        ent:linkComponent(chip())
+    end
+    net.receive("sv_sync",function()
+        net.start("cl_sync")
+        net.writeTable(net.readTable())
+        net.send()
+    end)
+    net.receive("cl_close",function()
+        ent:remove()
+    end)
+else
+    local iconTable={}
+    iconTable.__index={
+        ["cursor"]=material.createFromImage("icon16/cursor.png",""),
+        ["application_side_contract"]=material.createFromImage("icon16/application_side_contract.png",""),
+        ["disk"]=material.createFromImage("icon16/disk.png",""),
+        ["disk_multiple"]=material.createFromImage("icon16/disk_multiple.png",""),
+        ["page_white_add"]=material.createFromImage("icon16/page_white_add.png",""),
+        ["page_white_delete"]=material.createFromImage("icon16/page_white_delete.png",""),
+        ["page_refresh"]=material.createFromImage("icon16/page_refresh.png",""),
+        ["folder"]=material.createFromImage("icon16/folder.png",""),
+        ["page_white"]=material.createFromImage("icon16/page_white.png",""),
+        ["plugin"]=material.createFromImage("icon16/plugin.png",""),
+        ["cog"]=material.createFromImage("icon16/cog.png",""),
+        ["information"]=material.createFromImage("icon16/information.png",""),
+    }
+    local icons={}
+    setmetatable(icons,iconTable)
+    local hitBoxes={}
+    local explorer={
+        [1]={"starfall","folder"},
+        [2]={"Public Libs","plugin",0,0,true},
+        [3]={"Examples","information",0,0,true}
+    }
+    local data={}
+    local srcx
+    local x,y
+    
+    local h1=render.createFont(
+        'Default',
+        15,
+        500,
+        true
+    )
+    local h2=render.createFont(
+        'FontAwesome',
+        11,
+        500,
+        true
+    )
+    local h3=render.createFont(
+        'Default',
+        11,
+        500,
+        true
+    )
+    local h4=render.createFont(
+        'FontAwesome',
+        11,
+        500,
+        false
+    )
+    
+    render.createRenderTarget("fileExplorer")
+    
+    local debugging=false
+    
+    function drawHitBox(id,x,y,x2,y2,callBack,hoverFunction,closeEvent)
+        if hitBoxes[id] then
+            if hitBoxes[id][4] and hoverFunction then
+                hoverFunction()
+            end
+            if closeEvent then
+                closeEvent()
+            end
+            return
+        end
+        
+        table.add(hitBoxes,{
+            [id]={
+                Vector(x,y),
+                Vector(x+x2,y+y2),
+                callBack,
+                true
+            }
+        })
+    end
+    function drawPhysBox(id,x,y,x2,y2,callBack,hoverFunction,closeEvent)
+        drawHitBox(id,x,y,x2,y2,callBack,hoverFunction)
+        render.drawRect(x,y,x2,y2)
+        if closeEvent then
+            closeEvent()
+        end
+    end
+    function drawPhysTexturedRect(id,x,y,x2,y2,callBack)
+        drawHitBox(id,x-4,y-1.5,x2+7,y2+3,callBack)
+        render.drawTexturedRect(x,y,x2,y2)
+        if hitBoxes[id][4] then
+            render.setColor(Color(99,99,99))
+            render.drawRectOutline(x-4,y-1.5,x2+7,y2+3)
+            render.setColor(Color(255,255,255))
+        end
+    end
+    function selectBorder(x,y,x2,y2)
+        render.setColor(Color(99,99,99))
+        render.drawRectOutline(x,y,x2,y2,1)
+        render.setColor(Color(255,255,255))
+    end
+    function refresh()
+    end
+    hook.add("renderoffscreen","fileExplorer",function()
+        render.setFilterMag(1)
+        render.setFilterMin(1)
+        
+        render.selectRenderTarget("fileExplorer")
+        render.clear(Color(0,0,0,0))
+        
+        render.setColor(Color(99,99,99))
+        render.setFont(h3)
+        for i=1,math.clamp(#explorer,1,33) do
+            local _,len=(explorer[i][1]):gsub("/","")
+            
+            if !string.endsWith(explorer[i][1],".txt") then
+                if !explorer[i][3] then
+                    local files,dirs=file.findInGame("/data/"..explorer[i][1].."/*")
+                    
+                    explorer[i][3]=#files+#dirs
+                end
+                render.drawRectOutline(9+len*14,33+13.75*i,7,7,1)
+--[[
+                drawHitBox(20+i,9+len*14,33+13.75*i,7,7,function()
+                    if explorer[i][4] then
+                        explorer[i][4]=false
+                    else
+                        explorer[i][4]=true
+                    end
+                    print(explorer[i][4])
+                end)
+]]
+                if explorer[i][3]!=0 || explorer[i][5] then
+                    render.drawLine(10.5+len*14,36.5+13.75*i-1,13.5+len*14,36.5+13.75*i-1)
+                    if !explorer[i][4] || explorer[i][5] then
+                        render.drawLine(12+len*14,34.5+13.75*i,12+len*14,37.5+13.75*i)
+                    end
+                end
+            end
+            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1])
+            render.setColor(Color(255,255,255))
+            render.setMaterial(icons[explorer[i][2]])
+            render.drawTexturedRect(23+len*14,30.5+13.75*i,12,12)
+            render.setColor(Color(99,99,99))
+        end
+    end)
+    hook.add("render","draw",function()
+        render.setFilterMag(1)
+        render.setFilterMin(1)
+        
+        local temp={} --remove if not going to be fully used later
+        
+        if !srcx then
+            srcx=render.getScreenInfo(render.getScreenEntity())["RatioX"]
+        end
+        
+        render.setBackgroundColor(Color(34,35,28))
+        
+        render.setColor(Color(43,45,36))
+        render.drawRect(135,0,44,512)
+
+        render.setColor(Color(0,111,12))
+        drawPhysBox(1,144,489,512/srcx,23,function()end,function()
+            render.setColor(Color(0,80,6))
+        end)
+        
+        render.setColor(Color(0,111,12))
+        render.drawRectOutline(144,489,512/srcx-148-srcx,18,1)
+        
+        render.setColor(Color(255,255,255))
+        render.drawRect(5,24,512/srcx,19)
+        
+        render.setColor(Color(37,40,54))
+        render.drawRectOutline(0,0,512.5/srcx,512,5)
+        render.drawRect(0,0,144,512)
+        render.drawRect(0,0,512/srcx,23)
+        
+        render.setColor(Color(226,226,226))
+        drawPhysBox(2,5,24,135,15,function()end,function()end)
+        render.drawRoundedBox(2.5,5,40,135,450)
+        drawPhysBox(3,5,492,135,15,refresh,function()
+            temp["buttonShade"]=Color(221,221,221)
+        end)
+        
+        render.setColor(temp["buttonShade"] and temp["buttonShade"] or Color(216,216,216))
+        render.drawRect(5,499.5,135,7.5)
+        
+        render.setColor(Color(255,255,255))
+        render.setMaterial(icons["application_side_contract"])
+        drawPhysTexturedRect(4,150,27,14,14,function()end)
+        render.setMaterial(icons["disk"])
+        drawPhysTexturedRect(5,169,27,14,14,function()end)
+        render.setMaterial(icons["disk_multiple"])
+        drawPhysTexturedRect(6,189,27,14,14,function()end)
+        render.setMaterial(icons["page_white_add"])
+        drawPhysTexturedRect(7,208.5,27,14,14,function()end)
+        render.setMaterial(icons["page_white_delete"])
+        drawPhysTexturedRect(8,227.5,27,14,14,function()end)
+        render.setMaterial(icons["page_refresh"])
+        drawPhysTexturedRect(9,247,27,14,14,function()end)
+        render.setMaterial(icons["cog"])
+        drawPhysTexturedRect(10,512/srcx-43,27,14,14,function()end)
+        render.setMaterial(icons["information"])
+        drawPhysTexturedRect(11,512/srcx-23,27,14,14,function()
+            if data["credits"] then
+                data["credits"]=false
+            else
+                data["credits"]=true
+            end
+        end)
+        render.setFont(h1)        
+        render.drawText(7,5,"Starfall Editor (StarfallEx)")
+        render.setFont(h2)        
+        render.drawText(285/srcx,493,"Vaildation successful!",0)
+        
+        render.setColor(Color(12,12,12))
+        render.drawText(6,26,"Search...")
+        drawHitBox(12,5,492,135,15,function()end,function()render.setColor(Color(42,115,180))end)
+        render.drawText(74,494,"Refresh",1)
+        
+        local hover=function()render.setColor(Color(77,123,200))end
+        local colorRecall=function()render.setColor(Color(44,54,92))end
+        
+        render.setColor(Color(44,54,92))
+        drawPhysBox(13,512/srcx-36,4,33,17,function()
+            net.start("cl_close")
+            net.send()
+        end,hover,colorRecall)
+        drawPhysBox(14,512/srcx-90,4,46,17,function()end,hover,colorRecall)
+        drawPhysBox(15,512/srcx-162,4,70,17,function()end,hover,colorRecall)
+        drawPhysBox(16,512/srcx-226,4,62,17,function()end,hover,colorRecall)
+        drawPhysBox(17,512/srcx-283,4,54,17,function()end,hover,colorRecall)
+
+        render.setColor(Color(173,211,244))
+        render.drawText(512/srcx-32,7,"Close")
+        render.drawText(512/srcx-86,7,"SFHelper")
+        render.drawText(512/srcx-158,7,"Sound Browser")
+        render.drawText(512/srcx-222,7,"Model Viewer")
+        render.drawText(512/srcx-279,7,"Font Editor")
+        render.setColor(Color(255,255,255))
+        
+        render.setFont(h4)
+        
+        if data["credits"] then
+            render.setColor(Color(62,62,62))
+            render.drawRectOutline(512/srcx-130,42,120,162.5)
+            render.setColor(Color(226,226,226))
+            render.drawRect(512/srcx-130,43,118,160.5)
+            render.setColor(Color(62,62,62))
+            render.drawText(512/srcx-128,44,"CREDITS\n\nEditor by: Syranide and\nShandolum\n\nTabs (and more) added by\nDirvran.\n\nFixed for GMod13 By\nNinja101\n\nModified for starfall by D.\"/\n\nRemake in Starfall by Elias")
+        end
+        
+        render.setRenderTargetTexture("fileExplorer")
+        render.drawTexturedRect(0,0,1024,1024)
+        
+        x,y=render.cursorPos(owner())
+        
+        if x then
+            render.setMaterial(icons["cursor"])
+            render.setColor(Color(0,0,0))
+            render.drawTexturedRect(x-4.2,y-1,14,14)
+            render.setColor(Color(255,255,255))
+            render.drawTexturedRect(x-3.2,y,12,12)
+        end
+        
+        if !debugging then return end
+        for i=1,#hitBoxes do
+            local topLeft=hitBoxes[i][1]
+            local bottomRight=hitBoxes[i][2]
+            
+            render.setColor(Color(i*3,1,1):hsvToRGB())
+            render.drawLine(topLeft[1],topLeft[2],bottomRight[1],bottomRight[2])
+            render.drawRectOutline(topLeft[1],topLeft[2],bottomRight[1]-topLeft[1],bottomRight[2]-topLeft[2],1)
+        end
+    end)
+    if player()!=owner() then 
+        net.receive("cl_sync",function()
+            explorer=net.readTable()
+        end)
+        return 
+    end
+    hook.add("think","cl_hitBoxes",function()
+        for i=1,#hitBoxes do
+            if Vector(x,y):withinAABox(hitBoxes[i][1],hitBoxes[i][2]) then
+                if !hitBoxes[i][4] then
+                    hitBoxes[i][4]=true
+                    if hitBoxes[i][3] then
+                        print("hitId_"..i)
+                        hook.add("inputPressed","hitId_"..i,hitBoxes[i][3])
+                    end
+                end
+            else
+                if hitBoxes[i][4] then
+                    hitBoxes[i][4]=false
+                    hook.remove("inputPressed","hitId_"..i)
+                end
+            end
+        end
+    end)
+end
