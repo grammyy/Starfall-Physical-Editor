@@ -38,9 +38,9 @@ else
     setmetatable(icons,iconTable)
     local hitBoxes={}
     local explorer={
-        [1]={"starfall","folder"},
-        [2]={"Public Libs","plugin",0,0,true},
-        [3]={"Examples","information",0,0,true}
+        {"starfall","folder"},
+        {"Public Libs","plugin",0,0,true},
+        {"Examples","information",0,0,true}
     }
     local data={}
     local srcx
@@ -116,6 +116,23 @@ else
         render.drawRectOutline(x,y,x2,y2,1)
         render.setColor(Color(255,255,255))
     end
+    function expand(path,id) --store children of folder into table for deleting
+        local files,dirs=file.findInGame("/data/"..path.."/*")
+        local index=id
+        
+        for i=1,#dirs do
+            index=index+1
+            table.insert(explorer,index,{path.."/"..dirs[i],"folder"})
+        end
+        for i=1,#files do
+            index=index+1
+            table.insert(explorer,index,{path.."/"..files[i],"page_white"})
+        end
+        net.start("sv_sync")
+        net.writeTable(explorer)
+        net.send()
+        table.empty(hitBoxes)
+    end
     function refresh()
     end
     hook.add("renderoffscreen","fileExplorer",function()
@@ -136,7 +153,6 @@ else
                     
                     explorer[i][3]=#files+#dirs
                 end
-                render.drawRectOutline(9+len*14,33+13.75*i,7,7,1)
 --[[
                 drawHitBox(20+i,9+len*14,33+13.75*i,7,7,function()
                     if explorer[i][4] then
@@ -148,6 +164,7 @@ else
                 end)
 ]]
                 if explorer[i][3]!=0 || explorer[i][5] then
+                    render.drawRectOutline(9+len*14,33+13.75*i,7,7,1)
                     render.drawLine(10.5+len*14,36.5+13.75*i-1,13.5+len*14,36.5+13.75*i-1)
                     if !explorer[i][4] || explorer[i][5] then
                         render.drawLine(12+len*14,34.5+13.75*i,12+len*14,37.5+13.75*i)
@@ -296,6 +313,7 @@ else
         end)
         return 
     end
+    expand(explorer[1][1],1)
     hook.add("think","cl_hitBoxes",function()
         for i=1,#hitBoxes do
             if Vector(x,y):withinAABox(hitBoxes[i][1],hitBoxes[i][2]) then
