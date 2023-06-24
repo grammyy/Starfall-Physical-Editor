@@ -116,8 +116,13 @@ else
         render.drawRectOutline(x,y,x2,y2,1)
         render.setColor(Color(255,255,255))
     end
+    function sortABC(a,b)
+        return a:lower()<b:lower()
+    end
     function expand(path,id) --store children of folder into table for deleting
         local files,dirs=file.findInGame("/data/"..path.."/*")
+        table.sort(dirs,sortABC)
+        table.sort(files,sortABC)
         local index=id
         
         for i=1,#dirs do
@@ -132,6 +137,7 @@ else
         net.writeTable(explorer)
         net.send()
         table.empty(hitBoxes)
+        explorer[id][4]=true
     end
     function refresh()
     end
@@ -148,18 +154,13 @@ else
             local _,len=(explorer[i][1]):gsub("/","")
             
             if !string.endsWith(explorer[i][1],".txt") then
-                if !explorer[i][3] then
+                if !explorer[i][3] and player()==owner() then
                     local files,dirs=file.findInGame("/data/"..explorer[i][1].."/*")
                     
                     explorer[i][3]=#files+#dirs
                 end
 --[[
                 drawHitBox(20+i,9+len*14,33+13.75*i,7,7,function()
-                    if explorer[i][4] then
-                        explorer[i][4]=false
-                    else
-                        explorer[i][4]=true
-                    end
                     print(explorer[i][4])
                 end)
 ]]
