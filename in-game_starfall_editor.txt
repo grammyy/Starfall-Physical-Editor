@@ -2,6 +2,7 @@
 --@author Elias
 --button statuses are off center at high values
 --render fliter isnt great
+--button select border flashes on hitbox table change
 
 if SERVER then
     local ent=chip():isWeldedTo()
@@ -12,6 +13,11 @@ if SERVER then
     net.receive("sv_sync",function()
         net.start("cl_sync")
         net.writeTable(net.readTable())
+        net.send()
+    end)
+    net.receive("sv_mouseSync",function()
+        net.start("cl_mouseSync")
+        net.writeInt(net.readInt())
         net.send()
     end)
     net.receive("cl_close",function()
@@ -215,8 +221,15 @@ else
                             render.drawLine(12+len*14,34.5+13.75*i-13.75*scrollOffset,12+len*14,37.5+13.75*i-13.75*scrollOffset)
                         end
                     end
+                    drawHitBox(19+i+0.5,9+len*14,30+13.75*i-13.75*scrollOffset,117,13.75,function()end,function()
+                        render.setColor(Color(47,149,241))
+                    end)
                 else
-                    --txt file hitbox
+                    drawHitBox(19+i,9+len*14,30+13.75*i-13.75*scrollOffset,117,13.75,function()
+                        print(explorer[i][1]) --placeholder function, prints file's path for now
+                    end,function()
+                        render.setColor(Color(47,149,241))
+                    end)
                 end
                 render.drawText(37+len*14,30.5+13.75*i-13.75*scrollOffset,string.explode("/",explorer[i][1])[len+1])
                 render.setColor(Color(255,255,255))
@@ -359,6 +372,9 @@ else
         net.receive("cl_sync",function()
             explorer=net.readTable()
         end)
+        net.receive("cl_mouseSync",function()
+            scrollOffset=net.readInt()
+        end)
         return 
     end
     expand(explorer[1][1],1)
@@ -391,4 +407,11 @@ else
         scrollOffset=math.clamp(scrollOffset-rotate,0,100)
         table.empty(hitBoxes)
     end)
+--[[
+    timer.create("sv_mouseSync",1,0,function()
+        net.start("sv_mouseSync")
+        net.writeInt(scrollOffset)
+        net.send()
+    end)
+]]
 end
