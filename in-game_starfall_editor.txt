@@ -42,6 +42,7 @@ else
         {"Examples","information",0,0,true}
     }
     local data={}
+    local scrollOffset=0
     local srcx
     local x,y
     
@@ -151,6 +152,28 @@ else
     end
     function refresh()
     end
+    local function reset()
+        render.setStencilWriteMask(0xFF)
+        render.setStencilTestMask(0xFF)
+        render.setStencilReferenceValue(0)
+        render.setStencilCompareFunction(STENCIL.ALWAYS)
+        render.setStencilPassOperation(STENCIL.KEEP)
+        render.setStencilFailOperation(STENCIL.KEEP)
+        render.setStencilZFailOperation(STENCIL.KEEP)
+        render.clearStencil()
+    end
+    function mask(mask, target, invert)
+        reset()
+        render.setStencilEnable(true)
+        render.setStencilReferenceValue(1)
+        render.setStencilCompareFunction(1)
+        render.setStencilFailOperation(3)
+            mask()
+        render.setStencilCompareFunction(invert and 6 or 3)
+        render.setStencilFailOperation(1)
+            target()
+        render.setStencilEnable(false)
+    end
     hook.add("renderoffscreen","fileExplorer",function() --add inview render check
         render.setFilterMag(1)
         render.setFilterMin(1)
@@ -158,38 +181,50 @@ else
         render.selectRenderTarget("fileExplorer")
         render.clear(Color(0,0,0,0))
         
-        render.setColor(Color(99,99,99))
-        render.setFont(h3)
-        for i=1,math.clamp(#explorer,1,33) do
-            local _,len=(explorer[i][1]):gsub("/","")
-            
-            if !string.endsWith(explorer[i][1],".txt") then
-                if !explorer[i][3] and player()==owner() then
-                    local files,dirs=file.findInGame("/data/"..explorer[i][1].."/*")
-                    
-                    explorer[i][3]=#files+#dirs
-                end
-                drawHitBox(19+i,9+len*14,33+13.75*i,7,7,function()
-                    if !explorer[i][4] then
-                        expand(explorer[i][1],i)
-                    else
-                        close(i,explorer[i][3])
-                    end
-                end)
-                if explorer[i][3]!=0 || explorer[i][5] then
-                    render.drawRectOutline(9+len*14,33+13.75*i,7,7,1)
-                    render.drawLine(10.5+len*14,36.5+13.75*i-1,13.5+len*14,36.5+13.75*i-1)
-                    if !explorer[i][4] || explorer[i][5] then
-                        render.drawLine(12+len*14,34.5+13.75*i,12+len*14,37.5+13.75*i)
-                    end
-                end
-            end
-            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1])
-            render.setColor(Color(255,255,255))
-            render.setMaterial(icons[explorer[i][2]])
-            render.drawTexturedRect(23+len*14,30.5+13.75*i,12,12)
+        local m = Matrix()
+        m:translate(Vector(0, 0)) -- Move matrix to the center (RT size is fixed 1024x1024)
+        
+        mask(function()
+            m:setScale(Vector(1)) -- Size of the inner circle (hole)
+            render.pushMatrix(m)
+            render.drawRect(0,0,140.5,490)
+            render.popMatrix()
+        end,(function()
             render.setColor(Color(99,99,99))
-        end
+            render.setFont(h3)
+            for i=1+scrollOffset,math.clamp(#explorer,1,33+scrollOffset) do
+                local _,len=(explorer[i][1]):gsub("/","")
+                
+                if !string.endsWith(explorer[i][1],".txt") then
+                    if !explorer[i][3] and player()==owner() then
+                        local files,dirs=file.findInGame("/data/"..explorer[i][1].."/*")
+                        
+                        explorer[i][3]=#files+#dirs
+                    end
+                    drawHitBox(19+i,9+len*14,33+13.75*i-13.75*scrollOffset,7,7,function()
+                        if !explorer[i][4] then
+                            expand(explorer[i][1],i)
+                        else
+                            close(i,explorer[i][3])
+                        end
+                    end)
+                    if explorer[i][3]!=0 || explorer[i][5] then
+                        render.drawRectOutline(9+len*14,33+13.75*i-13.75*scrollOffset,7,7,1)
+                        render.drawLine(10.5+len*14,36.5+13.75*i-1-13.75*scrollOffset,13.5+len*14,36.5+13.75*i-1-13.75*scrollOffset)
+                        if !explorer[i][4] || explorer[i][5] then
+                            render.drawLine(12+len*14,34.5+13.75*i-13.75*scrollOffset,12+len*14,37.5+13.75*i-13.75*scrollOffset)
+                        end
+                    end
+                else
+                    --txt file hitbox
+                end
+                render.drawText(37+len*14,30.5+13.75*i-13.75*scrollOffset,string.explode("/",explorer[i][1])[len+1])
+                render.setColor(Color(255,255,255))
+                render.setMaterial(icons[explorer[i][2]])
+                render.drawTexturedRect(23+len*14,30.5+13.75*i-13.75*scrollOffset,12,12)
+                render.setColor(Color(99,99,99))
+            end
+        end))
     end)
     hook.add("render","draw",function()
         render.setFilterMag(1)
@@ -333,7 +368,6 @@ else
                 if !hitBox[4] then
                     hitBox[4]=true
                     if hitBox[3] then
-                        print("hitId_"..i)
                         hook.add("inputPressed","hitId_"..i,function(key)
                             if key==107 then
                                 hitBox[3]()
@@ -352,5 +386,9 @@ else
                 end
             end
         end
+    end)
+    hook.add("mouseWheeled","cl_mouse",function(rotate)
+        scrollOffset=math.clamp(scrollOffset-rotate,0,100)
+        table.empty(hitBoxes)
     end)
 end
