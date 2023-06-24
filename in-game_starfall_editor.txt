@@ -1,8 +1,8 @@
 --@name In-game starfall editor
 --@author Elias
---button statuses are off center at high values (likely still a issue, untested)
---remove by moving higher indexes to relocated, and then destroy the old copies.
+--button statuses are off center at high values
 --render fliter isnt great
+--unable to close folders that have folders inside them open currently, fixing in next version
 
 if SERVER then
     local ent=chip():isWeldedTo()
@@ -86,14 +86,12 @@ else
             return
         end
         
-        table.add(hitBoxes,{
-            [id]={
-                Vector(x,y),
-                Vector(x+x2,y+y2),
-                callBack,
-                true
-            }
-        })
+        hitBoxes[id]={
+            Vector(x,y),
+            Vector(x+x2,y+y2),
+            callBack,
+            true
+        }
     end
     function drawPhysBox(id,x,y,x2,y2,callBack,hoverFunction,closeEvent)
         drawHitBox(id,x,y,x2,y2,callBack,hoverFunction)
@@ -139,9 +137,19 @@ else
         table.empty(hitBoxes)
         explorer[id][4]=true
     end
+    function close(id,children)
+        for i=1,children do
+            table.remove(explorer,id+1)
+        end
+        net.start("sv_sync")
+        net.writeTable(explorer)
+        net.send()
+        table.empty(hitBoxes)
+        explorer[id][4]=false
+    end
     function refresh()
     end
-    hook.add("renderoffscreen","fileExplorer",function()
+    hook.add("renderoffscreen","fileExplorer",function() --add inview render check
         render.setFilterMag(1)
         render.setFilterMin(1)
         
@@ -159,11 +167,13 @@ else
                     
                     explorer[i][3]=#files+#dirs
                 end
---[[
-                drawHitBox(20+i,9+len*14,33+13.75*i,7,7,function()
-                    print(explorer[i][4])
+                drawHitBox(19+i,9+len*14,33+13.75*i,7,7,function()
+                    if !explorer[i][4] then
+                        expand(explorer[i][1],i)
+                    else
+                        close(i,explorer[i][3])
+                    end
                 end)
-]]
                 if explorer[i][3]!=0 || explorer[i][5] then
                     render.drawRectOutline(9+len*14,33+13.75*i,7,7,1)
                     render.drawLine(10.5+len*14,36.5+13.75*i-1,13.5+len*14,36.5+13.75*i-1)
@@ -172,7 +182,7 @@ else
                     end
                 end
             end
-            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1])
+            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1].." : "..i)
             render.setColor(Color(255,255,255))
             render.setMaterial(icons[explorer[i][2]])
             render.drawTexturedRect(23+len*14,30.5+13.75*i,12,12)
@@ -299,11 +309,11 @@ else
         end
         
         if !debugging then return end
-        for i=1,#hitBoxes do
-            local topLeft=hitBoxes[i][1]
-            local bottomRight=hitBoxes[i][2]
+        for id, hitBox in pairs(hitBoxes) do
+            local topLeft=hitBox[1]
+            local bottomRight=hitBox[2]
             
-            render.setColor(Color(i*3,1,1):hsvToRGB())
+            render.setColor(Color(id*3,1,1):hsvToRGB())
             render.drawLine(topLeft[1],topLeft[2],bottomRight[1],bottomRight[2])
             render.drawRectOutline(topLeft[1],topLeft[2],bottomRight[1]-topLeft[1],bottomRight[2]-topLeft[2],1)
         end
@@ -316,18 +326,18 @@ else
     end
     expand(explorer[1][1],1)
     hook.add("think","cl_hitBoxes",function()
-        for i=1,#hitBoxes do
-            if Vector(x,y):withinAABox(hitBoxes[i][1],hitBoxes[i][2]) then
-                if !hitBoxes[i][4] then
-                    hitBoxes[i][4]=true
-                    if hitBoxes[i][3] then
+        for i, hitBox in pairs(hitBoxes) do
+            if Vector(x,y):withinAABox(hitBox[1],hitBox[2]) then
+                if !hitBox[4] then
+                    hitBox[4]=true
+                    if hitBox[3] then
                         print("hitId_"..i)
-                        hook.add("inputPressed","hitId_"..i,hitBoxes[i][3])
+                        hook.add("inputPressed","hitId_"..i,hitBox[3])
                     end
                 end
             else
-                if hitBoxes[i][4] then
-                    hitBoxes[i][4]=false
+                if hitBox[4] then
+                    hitBox[4]=false
                     hook.remove("inputPressed","hitId_"..i)
                 end
             end
