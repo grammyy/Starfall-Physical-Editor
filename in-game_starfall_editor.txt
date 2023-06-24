@@ -182,7 +182,7 @@ else
                     end
                 end
             end
-            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1].." : "..i)
+            render.drawText(37+len*14,30.5+13.75*i,string.explode("/",explorer[i][1])[len+1])
             render.setColor(Color(255,255,255))
             render.setMaterial(icons[explorer[i][2]])
             render.drawTexturedRect(23+len*14,30.5+13.75*i,12,12)
