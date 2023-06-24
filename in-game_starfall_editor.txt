@@ -272,7 +272,6 @@ else
         render.drawText(512/srcx-158,7,"Sound Browser")
         render.drawText(512/srcx-222,7,"Model Viewer")
         render.drawText(512/srcx-279,7,"Font Editor")
-        render.setColor(Color(255,255,255))
         
         render.setFont(h4)
         
@@ -285,6 +284,7 @@ else
             render.drawText(512/srcx-128,44,"CREDITS\n\nEditor by: Syranide and\nShandolum\n\nTabs (and more) added by\nDirvran.\n\nFixed for GMod13 By\nNinja101\n\nModified for starfall by D.\"/\n\nRemake in Starfall by Elias")
         end
         
+        render.setColor(Color(255,255,255))
         render.setRenderTargetTexture("fileExplorer")
         render.drawTexturedRect(0,0,1024,1024)
         
