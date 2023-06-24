@@ -3,6 +3,7 @@
 --button statuses are off center at high values
 --render fliter isnt great
 --button select border flashes on hitbox table change
+--folders dont have open statises on other people's clients
 
 if SERVER then
     local ent=chip():isWeldedTo()
@@ -17,7 +18,7 @@ if SERVER then
     end)
     net.receive("sv_mouseSync",function()
         net.start("cl_mouseSync")
-        net.writeInt(net.readInt())
+        net.writeFloat(net.readFloat())
         net.send()
     end)
     net.receive("cl_close",function()
@@ -157,6 +158,13 @@ else
         explorer[id][4]=false
     end
     function refresh()
+        explorer={
+            {"starfall","folder"},
+            {"Public Libs","plugin",0,0,true},
+            {"Examples","information",0,0,true}
+        }
+        expand(explorer[1][1],1)
+        table.empty(hitBoxes)
     end
     local function reset()
         render.setStencilWriteMask(0xFF)
@@ -174,10 +182,10 @@ else
         render.setStencilReferenceValue(1)
         render.setStencilCompareFunction(1)
         render.setStencilFailOperation(3)
-            mask()
+        mask()
         render.setStencilCompareFunction(invert and 6 or 3)
         render.setStencilFailOperation(1)
-            target()
+        target()
         render.setStencilEnable(false)
     end
     hook.add("renderoffscreen","fileExplorer",function() --add inview render check
@@ -188,14 +196,14 @@ else
         render.clear(Color(0,0,0,0))
         
         local m = Matrix()
-        m:translate(Vector(0, 0)) -- Move matrix to the center (RT size is fixed 1024x1024)
+        m:translate(Vector(0, 0))
         
         mask(function()
-            m:setScale(Vector(1)) -- Size of the inner circle (hole)
+            m:setScale(Vector(1))
             render.pushMatrix(m)
             render.drawRect(0,0,140.5,490)
             render.popMatrix()
-        end,(function()
+        end,(function()      
             render.setColor(Color(99,99,99))
             render.setFont(h3)
             for i=1+scrollOffset,math.clamp(#explorer,1,33+scrollOffset) do
@@ -373,7 +381,7 @@ else
             explorer=net.readTable()
         end)
         net.receive("cl_mouseSync",function()
-            scrollOffset=net.readInt()
+            scrollOffset=net.readFloat()
         end)
         return 
     end
@@ -404,14 +412,15 @@ else
         end
     end)
     hook.add("mouseWheeled","cl_mouse",function(rotate)
-        scrollOffset=math.clamp(scrollOffset-rotate,0,100)
-        table.empty(hitBoxes)
+        if Vector(x,y):withinAABox(Vector(5,40),Vector(135,450)) then 
+            scrollOffset=math.clamp(scrollOffset-rotate,0,#explorer>33 and #explorer-32 or 0) --may have a bug at a very specific count of folders
+            table.empty(hitBoxes)
+            return 
+        end
     end)
---[[
     timer.create("sv_mouseSync",1,0,function()
         net.start("sv_mouseSync")
-        net.writeInt(scrollOffset)
+        net.writeFloat(scrollOffset)
         net.send()
     end)
-]]
 end
