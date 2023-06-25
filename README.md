@@ -1,3 +1,5 @@
+# MAJOR RECODE INCOMING, THIS VERSION IS CONSIDERED UNSTABLE
+
 ### In-game Starfall editor ; An exact recreation of Starfall's editor
 *****
 ### Feature roadmap
