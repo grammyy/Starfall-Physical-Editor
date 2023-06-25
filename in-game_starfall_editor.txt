@@ -1,9 +1,16 @@
 --@name In-game starfall editor
 --@author Elias
+
+--MAJOR RECODE INCOMING!
+--CURRENT VERSION IS PRESUMED VISUAL ONLY AND HAS NO HIGHER TECHICAL FUNCTIONS SUCH AS CODE VALIDATION.
+
 --button statuses are off center at high values
 --render fliter isnt great
 --button select border flashes on hitbox table change
 --folders dont have open statises on other people's clients
+--folders are not 1:1 to starfall's editor, fix later
+--add performance optimization
+--code editor font not 1:1
 
 if SERVER then
     local ent=chip():isWeldedTo()
@@ -13,12 +20,13 @@ if SERVER then
     end
     net.receive("sv_sync",function()
         net.start("cl_sync")
-        net.writeTable(net.readTable())
+        net.writeTable(net.readTable(1),1)
+        net.writeTable(net.readTable(2),2)
         net.send()
     end)
     net.receive("sv_mouseSync",function()
         net.start("cl_mouseSync")
-        net.writeFloat(net.readFloat())
+        net.writeTable(net.readTable())
         net.send()
     end)
     net.receive("cl_close",function()
@@ -48,8 +56,14 @@ else
         {"Public Libs","plugin",0,0,true},
         {"Examples","information",0,0,true}
     }
-    local data={}
-    local scrollOffset=0
+    local data={
+        code="",
+        changed=true
+    }
+    local scrollOffset={
+        explorer=0,
+        editor=0
+    }
     local srcx
     local x,y
     
@@ -65,7 +79,7 @@ else
         500,
         true
     )
-    local h3=render.createFont(
+    local h3=render.createFont( --unused for now, reserved for code editor
         'Default',
         11,
         500,
@@ -79,6 +93,7 @@ else
     )
     
     render.createRenderTarget("fileExplorer")
+    render.createRenderTarget("codeEditor")
     
     local debugging=false
     
@@ -139,7 +154,8 @@ else
             table.insert(explorer,index,{path.."/"..files[i],"page_white"})
         end
         net.start("sv_sync")
-        net.writeTable(explorer)
+        net.writeTable(explorer,1)
+        net.writeTable(data,2)
         net.send()
         table.empty(hitBoxes)
         explorer[id][4]=true
@@ -152,7 +168,8 @@ else
             table.remove(explorer,id+1)
         end
         net.start("sv_sync")
-        net.writeTable(explorer)
+        net.writeTable(explorer,1)
+        net.writeTable(data,2)
         net.send()
         table.empty(hitBoxes)
         explorer[id][4]=false
@@ -165,6 +182,11 @@ else
         }
         expand(explorer[1][1],1)
         table.empty(hitBoxes)
+        scrollOffset["explorer"]=0
+    end
+    function open(path)
+        data["code"]=file.readInGame("/data/"..path)
+        data["changed"]=true
     end
     local function reset()
         render.setStencilWriteMask(0xFF)
@@ -188,7 +210,7 @@ else
         target()
         render.setStencilEnable(false)
     end
-    hook.add("renderoffscreen","fileExplorer",function() --add inview render check
+    hook.add("renderoffscreen","fileExplorer",function()
         render.setFilterMag(1)
         render.setFilterMin(1)
         
@@ -198,16 +220,18 @@ else
         local m = Matrix()
         m:translate(Vector(0, 0))
         
+        render.setColor(Color(99,99,99))
+        render.setFont(h4)
         mask(function()
             m:setScale(Vector(1))
             render.pushMatrix(m)
             render.drawRect(0,0,140.5,490)
             render.popMatrix()
         end,(function()      
-            render.setColor(Color(99,99,99))
-            render.setFont(h3)
-            for i=1+scrollOffset,math.clamp(#explorer,1,33+scrollOffset) do
+            for i=1+scrollOffset["explorer"],math.clamp(#explorer,1,33+scrollOffset["explorer"]) do
                 local _,len=(explorer[i][1]):gsub("/","")
+                        
+                render.setColor(Color(99,99,99))
                 
                 if !string.endsWith(explorer[i][1],".txt") then
                     if !explorer[i][3] and player()==owner() then
@@ -215,7 +239,7 @@ else
                         
                         explorer[i][3]=#files+#dirs
                     end
-                    drawHitBox(19+i,9+len*14,33+13.75*i-13.75*scrollOffset,7,7,function()
+                    drawHitBox(19+i,9+len*14,33+13.75*i-13.75*scrollOffset["explorer"],7,7,function()
                         if !explorer[i][4] then
                             expand(explorer[i][1],i)
                         else
@@ -223,28 +247,62 @@ else
                         end
                     end)
                     if explorer[i][3]!=0 || explorer[i][5] then
-                        render.drawRectOutline(9+len*14,33+13.75*i-13.75*scrollOffset,7,7,1)
-                        render.drawLine(10.5+len*14,36.5+13.75*i-1-13.75*scrollOffset,13.5+len*14,36.5+13.75*i-1-13.75*scrollOffset)
+                        render.drawRectOutline(9+len*14,33+13.75*i-13.75*scrollOffset["explorer"],7,7,1)
+                        render.drawLine(10.5+len*14,36.5+13.75*i-1-13.75*scrollOffset["explorer"],13.5+len*14,36.5+13.75*i-1-13.75*scrollOffset["explorer"])
                         if !explorer[i][4] || explorer[i][5] then
-                            render.drawLine(12+len*14,34.5+13.75*i-13.75*scrollOffset,12+len*14,37.5+13.75*i-13.75*scrollOffset)
+                            render.drawLine(12+len*14,34.5+13.75*i-13.75*scrollOffset["explorer"],12+len*14,37.5+13.75*i-13.75*scrollOffset["explorer"])
                         end
                     end
-                    drawHitBox(19+i+0.5,9+len*14,30+13.75*i-13.75*scrollOffset,117,13.75,function()end,function()
+                    drawHitBox(19+i+0.5,9+len*14,30+13.75*i-13.75*scrollOffset["explorer"],117,13.75,function()end,function()
                         render.setColor(Color(47,149,241))
                     end)
                 else
-                    drawHitBox(19+i,9+len*14,30+13.75*i-13.75*scrollOffset,117,13.75,function()
-                        print(explorer[i][1]) --placeholder function, prints file's path for now
+                    drawHitBox(19+i,9+len*14,30+13.75*i-13.75*scrollOffset["explorer"],117,13.75,function()
+                        open(explorer[i][1]) --placeholder function, prints file's path for now
                     end,function()
                         render.setColor(Color(47,149,241))
                     end)
                 end
-                render.drawText(37+len*14,30.5+13.75*i-13.75*scrollOffset,string.explode("/",explorer[i][1])[len+1])
+                render.drawText(37+len*14,30.5+13.75*i-13.75*scrollOffset["explorer"],string.explode("/",explorer[i][1])[len+1])
                 render.setColor(Color(255,255,255))
                 render.setMaterial(icons[explorer[i][2]])
-                render.drawTexturedRect(23+len*14,30.5+13.75*i-13.75*scrollOffset,12,12)
+                render.drawTexturedRect(23+len*14,30.5+13.75*i-13.75*scrollOffset["explorer"],12,12)
                 render.setColor(Color(99,99,99))
             end
+        end))
+    end)
+    hook.add("renderoffscreen","codeEditor",function()
+        render.setFilterMag(1)
+        render.setFilterMin(1)
+        
+        render.selectRenderTarget("codeEditor")
+        render.clear(Color(0,0,0,0))
+        
+        local m = Matrix()
+        m:translate(Vector(0, 0))
+        
+        mask(function()
+            m:setScale(Vector(1))
+            render.pushMatrix(m)
+            render.drawRect(144,43,512/(srcx and srcx or 1)-149,446)
+            render.popMatrix()
+        end,(function()      
+            --render.setFont()
+            if data["code"]=="" then return end
+            if data["changed"] then 
+                data["codeIndexed"]=string.explode("\n",data["code"])
+                data["changed"]=false
+                scrollOffset["editor"]=0
+            end
+            
+            local code=data["codeIndexed"]
+            
+            if !code then return end
+            for i=1+scrollOffset["editor"],math.clamp(#code,1,33+scrollOffset["editor"]) do
+                render.setColor(Color(144,145,139))
+                render.drawText(144+37,43+13.75*(i-1)-13.75*scrollOffset["editor"],code[i])
+                render.drawText(144+12,43+13.75*(i-1)-13.75*scrollOffset["editor"],i)
+            end            
         end))
     end)
     hook.add("render","draw",function()
@@ -355,6 +413,8 @@ else
         render.setColor(Color(255,255,255))
         render.setRenderTargetTexture("fileExplorer")
         render.drawTexturedRect(0,0,1024,1024)
+        render.setRenderTargetTexture("codeEditor")
+        render.drawTexturedRect(0,0,1024,1024)
         
         x,y=render.cursorPos(owner())
         
@@ -378,10 +438,11 @@ else
     end)
     if player()!=owner() then 
         net.receive("cl_sync",function()
-            explorer=net.readTable()
+            explorer=net.readTable(1)
+            data=net.readTable(2)
         end)
         net.receive("cl_mouseSync",function()
-            scrollOffset=net.readFloat()
+            scrollOffset=net.readTable()
         end)
         return 
     end
@@ -411,16 +472,21 @@ else
             end
         end
     end)
-    hook.add("mouseWheeled","cl_mouse",function(rotate)
+    hook.add("mouseWheeled","cl_mouse",function(rotate) --create into temeplate function later, too much text wall here
         if Vector(x,y):withinAABox(Vector(5,40),Vector(135,450)) then 
-            scrollOffset=math.clamp(scrollOffset-rotate,0,#explorer>33 and #explorer-32 or 0) --may have a bug at a very specific count of folders
+            scrollOffset["explorer"]=math.clamp(scrollOffset["explorer"]-rotate,0,#explorer>33 and #explorer-32 or 0) --may have a bug at a very specific count of folders
+            table.empty(hitBoxes)
+            return 
+        end
+        if Vector(x,y):withinAABox(Vector(144,43),Vector(512/(srcx and srcx or 1)-149,446)) and data["code"]!="" then
+            scrollOffset["editor"]=math.clamp(scrollOffset["editor"]-rotate,0,#data["codeIndexed"]>33 and #data["codeIndexed"]-32 or 0) --may have a bug at a very specific count of folders
             table.empty(hitBoxes)
             return 
         end
     end)
     timer.create("sv_mouseSync",1,0,function()
         net.start("sv_mouseSync")
-        net.writeFloat(scrollOffset)
+        net.writeTable(scrollOffset)
         net.send()
     end)
 end
