@@ -7,7 +7,7 @@
 * ~~element functions and buttons~~ **[Press buttons and alike]**
 * ~~file explorer~~ **[Open, close folders]**
 * Scaleable elements **[Side bar and font changing]
-* code opening **[Open txt files in house and edit them]**
+* ~~code opening~~ **[Open txt files in house and edit them]**
 * Code validation **[Run a validation function on code in editor]**
 * file explorer functions **[Create, remove, and move folders and files]**
 * Finishing touches 
