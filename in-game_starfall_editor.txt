@@ -11,6 +11,7 @@
 --folders are not 1:1 to starfall's editor, fix later
 --add performance optimization
 --code editor font not 1:1
+--code isnt networked to player, fix later
 
 if SERVER then
     local ent=chip():isWeldedTo()
@@ -20,8 +21,7 @@ if SERVER then
     end
     net.receive("sv_sync",function()
         net.start("cl_sync")
-        net.writeTable(net.readTable(1),1)
-        net.writeTable(net.readTable(2),2)
+        net.writeTable(net.readTable())
         net.send()
     end)
     net.receive("sv_mouseSync",function()
@@ -33,8 +33,7 @@ if SERVER then
         ent:remove()
     end)
 else
-    local iconTable={}
-    iconTable.__index={
+    local icons={
         ["cursor"]=material.createFromImage("icon16/cursor.png",""),
         ["application_side_contract"]=material.createFromImage("icon16/application_side_contract.png",""),
         ["disk"]=material.createFromImage("icon16/disk.png",""),
@@ -48,8 +47,6 @@ else
         ["cog"]=material.createFromImage("icon16/cog.png",""),
         ["information"]=material.createFromImage("icon16/information.png",""),
     }
-    local icons={}
-    setmetatable(icons,iconTable)
     local hitBoxes={}
     local explorer={
         {"starfall","folder"},
@@ -149,15 +146,17 @@ else
             index=index+1
             table.insert(explorer,index,{path.."/"..dirs[i],"folder"})
         end
+        
         for i=1,#files do
             index=index+1
             table.insert(explorer,index,{path.."/"..files[i],"page_white"})
         end
+        
         net.start("sv_sync")
-        net.writeTable(explorer,1)
-        net.writeTable(data,2)
+        net.writeTable({explorer,data})
         net.send()
         table.empty(hitBoxes)
+        
         explorer[id][4]=true
     end
     function close(id,children)
@@ -167,11 +166,12 @@ else
             end
             table.remove(explorer,id+1)
         end
+        
         net.start("sv_sync")
-        net.writeTable(explorer,1)
-        net.writeTable(data,2)
+        net.writeTable({explorer,data})
         net.send()
         table.empty(hitBoxes)
+        
         explorer[id][4]=false
     end
     function refresh()
@@ -180,8 +180,11 @@ else
             {"Public Libs","plugin",0,0,true},
             {"Examples","information",0,0,true}
         }
+        
         expand(explorer[1][1],1)
+        
         table.empty(hitBoxes)
+        
         scrollOffset["explorer"]=0
     end
     function open(path)
@@ -224,6 +227,7 @@ else
         render.setFont(h4)
         mask(function()
             m:setScale(Vector(1))
+            
             render.pushMatrix(m)
             render.drawRect(0,0,140.5,490)
             render.popMatrix()
@@ -239,6 +243,7 @@ else
                         
                         explorer[i][3]=#files+#dirs
                     end
+                    
                     drawHitBox(19+i,9+len*14,33+13.75*i-13.75*scrollOffset["explorer"],7,7,function()
                         if !explorer[i][4] then
                             expand(explorer[i][1],i)
@@ -246,23 +251,27 @@ else
                             close(i,explorer[i][3])
                         end
                     end)
+                    
                     if explorer[i][3]!=0 || explorer[i][5] then
                         render.drawRectOutline(9+len*14,33+13.75*i-13.75*scrollOffset["explorer"],7,7,1)
                         render.drawLine(10.5+len*14,36.5+13.75*i-1-13.75*scrollOffset["explorer"],13.5+len*14,36.5+13.75*i-1-13.75*scrollOffset["explorer"])
+                        
                         if !explorer[i][4] || explorer[i][5] then
                             render.drawLine(12+len*14,34.5+13.75*i-13.75*scrollOffset["explorer"],12+len*14,37.5+13.75*i-13.75*scrollOffset["explorer"])
                         end
                     end
+                    
                     drawHitBox(19+i+0.5,9+len*14,30+13.75*i-13.75*scrollOffset["explorer"],117,13.75,function()end,function()
                         render.setColor(Color(47,149,241))
                     end)
                 else
                     drawHitBox(19+i,9+len*14,30+13.75*i-13.75*scrollOffset["explorer"],117,13.75,function()
-                        open(explorer[i][1]) --placeholder function, prints file's path for now
+                        open(explorer[i][1])
                     end,function()
                         render.setColor(Color(47,149,241))
                     end)
                 end
+                
                 render.drawText(37+len*14,30.5+13.75*i-13.75*scrollOffset["explorer"],string.explode("/",explorer[i][1])[len+1])
                 render.setColor(Color(255,255,255))
                 render.setMaterial(icons[explorer[i][2]])
@@ -288,7 +297,10 @@ else
             render.popMatrix()
         end,(function()      
             --render.setFont()
-            if data["code"]=="" then return end
+            if data["code"]=="" then 
+                return 
+            end
+            
             if data["changed"] then 
                 data["codeIndexed"]=string.explode("\n",data["code"])
                 data["changed"]=false
@@ -297,7 +309,10 @@ else
             
             local code=data["codeIndexed"]
             
-            if !code then return end
+            if !code then 
+                return 
+            end
+            
             for i=1+scrollOffset["editor"],math.clamp(#code,1,33+scrollOffset["editor"]) do
                 render.setColor(Color(144,145,139))
                 render.drawText(144+37,43+13.75*(i-1)-13.75*scrollOffset["editor"],code[i])
@@ -426,7 +441,10 @@ else
             render.drawTexturedRect(x-3.2,y,12,12)
         end
         
-        if !debugging then return end
+        if !debugging then 
+            return 
+        end
+        
         for id, hitBox in pairs(hitBoxes) do
             local topLeft=hitBox[1]
             local bottomRight=hitBox[2]
@@ -438,26 +456,34 @@ else
     end)
     if player()!=owner() then 
         net.receive("cl_sync",function()
-            explorer=net.readTable(1)
-            data=net.readTable(2)
+            local package=net.readTable()
+            
+            explorer=package[1]
+            data=package[2]
         end)
+        
         net.receive("cl_mouseSync",function()
             scrollOffset=net.readTable()
         end)
+        
         return 
     end
+    
     expand(explorer[1][1],1)
+    
     hook.add("think","cl_hitBoxes",function()
         for i, hitBox in pairs(hitBoxes) do
             if Vector(x,y):withinAABox(hitBox[1],hitBox[2]) then
                 if !hitBox[4] then
                     hitBox[4]=true
+                    
                     if hitBox[3] then
                         hook.add("inputPressed","hitId_"..i,function(key)
                             if key==107 then
                                 hitBox[3]()
                                 return
                             end
+                            
                             if key==108 then
                                 return
                             end
@@ -467,6 +493,7 @@ else
             else
                 if hitBox[4] then
                     hitBox[4]=false
+                    
                     hook.remove("inputPressed","hitId_"..i)
                 end
             end
@@ -475,12 +502,16 @@ else
     hook.add("mouseWheeled","cl_mouse",function(rotate) --create into temeplate function later, too much text wall here
         if Vector(x,y):withinAABox(Vector(5,40),Vector(135,450)) then 
             scrollOffset["explorer"]=math.clamp(scrollOffset["explorer"]-rotate,0,#explorer>33 and #explorer-32 or 0) --may have a bug at a very specific count of folders
+            
             table.empty(hitBoxes)
+            
             return 
         end
         if Vector(x,y):withinAABox(Vector(144,43),Vector(512/(srcx and srcx or 1)-149,446)) and data["code"]!="" then
             scrollOffset["editor"]=math.clamp(scrollOffset["editor"]-rotate,0,#data["codeIndexed"]>33 and #data["codeIndexed"]-32 or 0) --may have a bug at a very specific count of folders
+            
             table.empty(hitBoxes)
+            
             return 
         end
     end)
